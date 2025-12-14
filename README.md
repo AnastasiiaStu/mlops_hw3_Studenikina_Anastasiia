@@ -1,6 +1,15 @@
 # ML Service Deployment with Blue-Green Strategy
 
-## Структура проекта
+## Создание структуры проекта - директорий и поддиректорий
+
+```
+ml-deployment-project/
+├── app/
+├── .github/
+│   └── workflows/
+├── nginx/
+```
+## Создание файлов в структуре
 
 ```
 ml-deployment-project/
@@ -20,61 +29,32 @@ ml-deployment-project/
 └── README.md
 ```
 
-## Быстрый старт
+## Настройка прав доступа 
 
-```bash
-# Соберите Docker-образ
-docker build -t ml-service:v1.0.0 .
-
-# Запустите Blue окружение
-docker-compose -f docker-compose.blue.yml up -d
-
-# Проверьте работу сервиса
-curl http://localhost/health
-curl -X POST http://localhost/predict -H "Content-Type: application/json" -d '{"features": [1, 2, 3, 4]}'
+```
+cmd /c "icacls setup.sh /grant %USERNAME%:F"
+cmd /c "icacls verify_setup.sh /grant %USERNAME%:F"
+cmd /c "icacls test_script.sh /grant %USERNAME%:F"
 ```
 
-###  1: Подготовка окружения
+###  Проверка окружения 
 
-```bash
-git clone https://github.com/YOUR_USERNAME/ml-deployment-project.git
-cd ml-deployment-project
-
+```
 docker --version
+docker ps
 docker-compose --version
+netstat -ano | findstr :80
 ```
 
-###  2: Локальное тестирование
+###  Сборка Docker образов
 
-#### Запуск Blue версии (v1.0.0)
-
-```bash
-docker build -t ml-service:v1.0.0 .
-docker-compose -f docker-compose.blue.yml up -d
-
-curl http://localhost/health
-# Ожидаемый ответ: {"status":"ok","version":"v1.0.0"}
-
-curl -X POST http://localhost/predict \
-  -H "Content-Type: application/json" \
-  -d '{"features": [5.1, 3.5, 1.4, 0.2]}'
-# Ожидаемый ответ: {"prediction":0,"model_version":"v1.0.0"}
 ```
-
-#### Запуск Green версии (v1.1.0)
-
-```bash
+docker build -t ml-service:v1.0.0 --build-arg MODEL_VERSION=v1.0.0 .
 docker build -t ml-service:v1.1.0 --build-arg MODEL_VERSION=v1.1.0 .
-docker-compose -f docker-compose.blue.yml down
-docker-compose -f docker-compose.green.yml up -d
-
-curl http://localhost/health
-# Ожидаемый ответ: {"status":"ok","version":"v1.1.0"}
 ```
+### Переключение между версиями
 
-### 3: Переключение между версиями
-
-```bash
+```
 # Если Green версия работает нормально
 docker-compose -f docker-compose.green.yml up -d
 
@@ -85,96 +65,48 @@ docker-compose -f docker-compose.blue.yml up -d
 curl http://localhost/health
 ```
 
-### 4: Настройка CI/CD на GitHub
+### Настройка CI/CD на GitHub
 
- репозиторий на GitHub
-```bash
+```
 git init
 git add .
 git commit -m "Initial commit: ML service with Blue-Green deployment"
 git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/ml-deployment-project.git
+git remote add origin https://github.com/...
 git push -u origin main
 ```
 
 2. секреты в GitHub
    - Settings → Secrets and variables → Actions
-   - Добавьте CLOUD_TOKEN (опционально)
+   - CLOUD_TOKEN и MODEL_VERSION
 
 3. Workflow запустится автоматически при push в main
 
-###  5: Проверка метрик и логов
+###  Проверка метрик и логов
 
-```bash
-# Логи Blue версии
+```
 docker-compose -f docker-compose.blue.yml logs -f ml-service
-
-# Логи Green версии
 docker-compose -f docker-compose.green.yml logs -f ml-service
-
-# Статус контейнеров
 docker ps
-
-# Использование ресурсов
 docker stats
-```
-
-## API Endpoints
-
-### GET /health
-Возвращает статус сервиса и версию модели.
-
-Запрос:
-```bash
-curl http://localhost/health
-```
-
-Ответ:
-```json
-{
-  "status": "ok",
-  "version": "v1.0.0"
-}
-```
-
-### POST /predict
-Выполняет предсказание на основе входных данных.
-
-Запрос:
-```bash
-curl -X POST http://localhost/predict \
-  -H "Content-Type: application/json" \
-  -d '{"features": [5.1, 3.5, 1.4, 0.2]}'
-```
-
-Ответ:
-```json
-{
-  "prediction": 0,
-  "model_version": "v1.0.0"
-}
 ```
 
 ## Тестирование стратегии Blue-Green
 
-###  1: Успешное развертывание
+###  1 вариант успешное 
 
-```bash
-# Запустите Blue (v1.0.0)
+```
 docker-compose -f docker-compose.blue.yml up -d
 curl http://localhost/health
-
-# Соберите и запустите Green (v1.1.0)
 docker build -t ml-service:v1.1.0 --build-arg MODEL_VERSION=v1.1.0 .
 docker-compose -f docker-compose.blue.yml down
 docker-compose -f docker-compose.green.yml up -d
 curl http://localhost/health
 ```
 
-###  2: Rollback при ошибках
+###  2 вариант Rollback при ошибках
 
-```bash
-# Откат на Blue при проблемах с Green
+```
 docker-compose -f docker-compose.green.yml down
 docker-compose -f docker-compose.blue.yml up -d
 curl http://localhost/health
